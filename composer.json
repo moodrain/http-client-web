@@ -1,0 +1,5 @@
+{
+    "require": {
+        "moodrain/moodrain-curl": "^1.0"
+    }
+}
