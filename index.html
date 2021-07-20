@@ -6,72 +6,16 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Moodrain Http Client</title>
-    <link href="https://s1.moodrain.cn/lib/element-ui/index.css" rel="stylesheet">
-    <link href="https://s1.moodrain.cn/lib/highlight/androidstudio.css" rel="stylesheet">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-        }
-        
-        html,
-        body,
-        #app {
-            width: 100%;
-            height: 100%;
-        }
-        
-        .req-container {
-            width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        @media (min-width: 500px) {
-            .req-box {
-                width: 40%;
-                height: 80%;
-            }
-            .form-input {
-                width: 80%;
-            }
-            .form-body-item-name {
-                width: 20%;
-                margin-bottom: 1%;
-            }
-            .form-body-item-value {
-                width: 57%;
-                margin-bottom: 1%;
-            }
-        }
-        
-        @media (max-width: 400px) {
-            .req-box {
-                width: 96%;
-                height: 96%;
-            }
-            .form-input {
-                width: 88%;
-            }
-            .form-body-item {
-                width: 42%;
-                margin-bottom: 1%;
-            }
-        }
-        
-        pre {
-            white-space: pre-wrap;
-            word-wrap: break-word;
-        }
-    </style>
+    <link rel="stylesheet" href="https://s1.moodrain.cn/lib/element-ui/index.css">
+    <link rel="stylesheet" href="https://s1.moodrain.cn/lib/highlight/androidstudio.css">
+    <link rel="stylesheet" href="index.css">
 </head>
 
 <body>
     <div id="app">
-        <div class="req-container">
-            <div class="req-box">
+        <div class="container">
+
+            <div class="container-item" v-show="show.container == 'requestBox'">
                 <el-form label-width="100px">
                     <el-form-item label="URL">
                         <el-input v-model="form.url" class="form-input"></el-input>
@@ -97,7 +41,7 @@
                     <el-form-item label="Header">
                         <el-form>
                             <el-form-item v-for="(input, index) in form.headerInputs" :key="index">
-                                <el-input @change="addHeaderInput(index, input.name)" class="form-body-item-name" v-model="input.name" style="margin-right: 2%"></el-input>
+                                <el-input @change="addFieldInput('headerInputs', index, input.name)" class="form-body-item-name" v-model="input.name" style="margin-right: 2%"></el-input>
                                 <el-input class="form-body-item-value" v-model="input.value"></el-input>
                             </el-form-item>
                         </el-form>
@@ -105,28 +49,90 @@
                     <el-form-item label="Cookie">
                         <el-form>
                             <el-form-item v-for="(input, index) in form.cookieInputs" :key="index">
-                                <el-input @change="addCookieInput(index, input.name)" class="form-body-item-name" v-model="input.name" style="margin-right: 2%"></el-input>
+                                <el-input @change="addFieldInput('cookieInputs', index, input.name)" class="form-body-item-name" v-model="input.name" style="margin-right: 2%"></el-input>
                                 <el-input class="form-body-item-value" v-model="input.value"></el-input>
                             </el-form-item>
                         </el-form>
                     </el-form-item>
                     <el-form-item label="Body">
-                        <el-radio v-model="form.bodyInputType" label="input">Form Input</el-radio>
-                        <el-radio v-model="form.bodyInputType" label="text">Textarea</el-radio>
+                        <el-radio v-model="form.bodyInputType" label="input" @change="bodyInputTypeChange">Form Input</el-radio>
+                        <el-radio v-model="form.bodyInputType" label="text" @change="bodyInputTypeChange">Textarea</el-radio>
                         <br />
                         <el-input v-if="form.bodyInputType == 'text'" v-model="form.bodyText" type="textarea" class="form-input" rows="6"></el-input>
                         <el-form v-if="form.bodyInputType == 'input'">
                             <el-form-item v-for="(input, index) in form.bodyInputs" :key="index">
-                                <el-input @change="addBodyInput(index, input.name)" class="form-body-item-name" v-model="input.name" style="margin-right: 2%"></el-input>
+                                <el-input @change="addFieldInput('bodyInputs', index, input.name)" class="form-body-item-name" v-model="input.name" style="margin-right: 2%"></el-input>
                                 <el-input class="form-body-item-value" v-model="input.value"></el-input>
                             </el-form-item>
                         </el-form>
                     </el-form-item>
                     <el-form-item>
-                        <el-button @click="submit">Submit</el-button>
+                        <el-button @click="submit" :disabled="sendingReq">Submit</el-button>
+                        <el-button @click="doSave">Save</el-button>
+                        <el-button @click="show.container = 'toolBox'">Toolbox</el-button>
                     </el-form-item>
                 </el-form>
-                <div v-show="response.body">
+            </div>
+
+            <div class="container-item" v-show="show.container == 'toolBox'">
+                <el-button icon="el-icon-back" @click="show.container = 'requestBox'"></el-button>
+                <el-divider></el-divider>
+                <el-button @click="show.container = 'export'">Export</el-button>
+                <el-button @click="show.container = 'import'">Import</el-button>
+                <el-divider></el-divider>
+                <el-button @click="toHistory">History</el-button>
+                <el-button @click="toSaved">Saved</el-button>
+            </div>
+
+            <div class="container-item" v-show="show.container == 'export'">
+                <el-button icon="el-icon-back" @click="show.container = 'toolBox'"></el-button>
+                <el-divider></el-divider>
+                <el-input type="textarea" :value="genExport()" :rows="16"></el-input>
+            </div>
+
+            <div class="container-item" v-show="show.container == 'import'">
+                <el-button icon="el-icon-back" @click="show.container = 'toolBox'"></el-button>
+                <el-divider></el-divider>
+                <el-input type="textarea" v-model="toImport" :rows="16"></el-input>
+                <br /><br />
+                <el-button @click="doImport">Import</el-button>
+            </div>
+
+            <div class="container-item" v-show="show.container == 'history'">
+                <el-button icon="el-icon-back" @click="backToolBox"></el-button>
+                <el-divider></el-divider>
+                <el-collapse v-for="(record, index) in history" :key="record.id" v-model="recordOpen.history[index]">
+                    <el-collapse-item :title="record.time + ' | ' + record.method + ' | ' + record.url">
+                        <pre v-if="typeof record.body == 'object' && Object.keys(record.body).length != 0"><code class="lang-json">{{ JSON.stringify(record.body, '', 2) }}</code></pre>
+                        <pre v-if="typeof record.body == 'string' && record.body != ''"><code class="lang-html">{{ record.body }}</code></pre>
+                        <el-divider></el-divider>
+                        <el-button icon="el-icon-search" @click="showResponse(record)"></el-button>
+                        <el-button icon="el-icon-refresh-left" @click="importRecord(record)"></el-button>
+                        <el-button icon="el-icon-delete" @click="rmRecord('history', index)"></el-button>
+                    </el-collapse-item>
+                </el-collapse>
+            </div>
+
+            <div class="container-item" v-show="show.container == 'saved'">
+                <el-button icon="el-icon-back" @click="backToolBox"></el-button>
+                <el-divider></el-divider>
+                <el-collapse v-for="(record, index) in saved" :key="record.id" v-model="recordOpen.saved[index]">
+                    <el-collapse-item :title="record.name + ' | ' + record.method + ' | ' + record.url">
+                        <pre v-if="typeof record.body == 'object' && Object.keys(record.body).length != 0"><code>{{ JSON.stringify(record.body, '', 2) }}</code></pre>
+                        <pre v-if="typeof record.body == 'string' && record.body != ''"><code>{{ record.body }}</code></pre>
+                        <el-divider></el-divider>
+                        <el-button icon="el-icon-search" @click="showResponse(record)"></el-button>
+                        <el-button icon="el-icon-refresh-left" @click="importRecord(record)"></el-button>
+                        <el-button icon="el-icon-edit" @click="renameSaved(index)"></el-button>
+                        <el-button icon="el-icon-arrow-up" @click="moveSaved(index, -1)"></el-button>
+                        <el-button icon="el-icon-arrow-down" @click="moveSaved(index, 1)"></el-button>
+                        <el-button icon="el-icon-delete" @click="rmRecord('saved', index)"></el-button>
+                    </el-collapse-item>
+                </el-collapse>
+            </div>
+            
+            <div class="container-item" style="padding-top: 0;">
+                <div v-show="show.response">
                     <el-divider content-position="left">Response</el-divider>
                     <el-tabs v-model="activeResponseTab">
                         <el-tab-pane label="Body" name="body">
@@ -141,151 +147,13 @@
                     </el-tabs>
                 </div>
             </div>
+
         </div>
     </div>
     <script src="https://s1.moodrain.cn/lib/vue/index.js"></script>
     <script src="https://s1.moodrain.cn/lib/element-ui/index.js"></script>
     <script src="https://s1.moodrain.cn/lib/highlight/index.js"></script>
-    <script>
-        let app = new Vue({
-            el: '#app',
-            data() {
-                return {
-                    form: {
-                        url: '',
-                        method: 'GET',
-                        contentType: 'application/json',
-                        bodyInputType: 'input',
-                        bodyText: '',
-                        bodyInputs: [{
-                            name: '',
-                            value: ''
-                        }],
-                        headerInputs: [{
-                            name: '',
-                            value: ''
-                        }],
-                        cookieInputs: [{
-                            name: '',
-                            value: ''
-                        }],
-                    },
-                    response: {
-                        header: [],
-                        cookie: [],
-                        body: '',
-                    },
-                    activeResponseTab: 'body',
-                }
-            },
-            methods: {
-                submit() {
-                    if (!this.form.url) {
-                        this.$notify.warning('Empty URL')
-                        return
-                    }
-                    this.send(this.form2Request())
-                },
-                form2Request() {
-                    let method = this.form.method
-                    let request = {}
-                    request.url = this.form.url
-                    request.method = this.form.method
-                    request.contentType = (method == 'POST' || method == 'PUT' || method == 'PATCH') ? this.form.contentType : ''
-                    if (this.form.bodyInputType == 'input') {
-                        request.body = {}
-                        this.form.bodyInputs.filter(p => p.name != '').forEach(p => {
-                            request.body[p.name] = p.value
-                        })
-                    } else {
-                        request.body = this.form.bodyText
-                    }
-                    request.cookie = {}
-                    this.form.cookieInputs.filter(p => p.name != '').forEach(p => {
-                        request.cookie[p.name] = p.value
-                    })
-                    request.header = {}
-                    this.form.headerInputs.filter(p => p.name != '').forEach(p => {
-                        request.header[p.name] = p.value
-                    })
-                    return request
-                },
-                send(request) {
-                    fetch('api.php', {
-                        body: JSON.stringify(request),
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    }).then(rs => {
-                        rs.json().then(json => {
-                            this.response.body = json.body
-                            this.response.header = json.header
-                            this.response.cookie = json.cookie
-                            this.$notify.success('Request Compelete')
-                            let isJson = json.header['Content-Type'].indexOf('application/json') !== -1
-                            let showRsBody = isJson ? JSON.stringify(json.body, '', 2) : json.body
-                            let showRsHeader = JSON.stringify(json.header, '', 2)
-                            let showRsCookie = JSON.stringify(json.cookie, '', 2)
-                            let fillRs = (id, content, isJson) => {
-                                let code = document.createElement('code')
-                                code.className = isJson ? 'lang-json' : 'lang-html'
-                                code.innerHTML = content.replace(/[<>&"]/g, function(c) {
-                                    return {
-                                        '<': '&lt;',
-                                        '>': '&gt;',
-                                        '&': '&amp;',
-                                        '"': '&quot;'
-                                    }[c]
-                                })
-                                let pre = document.createElement('pre')
-                                pre.appendChild(code)
-                                let e = document.querySelector('#' + id)
-                                e.innerHTML = ''
-                                e.appendChild(pre)
-                            }
-                            fillRs('rs-show-body', showRsBody, isJson)
-                            fillRs('rs-show-header', showRsHeader, true)
-                            fillRs('rs-show-cookie', showRsCookie, true)
-                            hljs.highlightAll()
-                        }).catch(e => {
-                            console.log(e)
-                            this.$notify.error('Request Fail')
-                        })
-                    }).catch(() => {
-                        this.$notify.error('Request Fail')
-                    })
-                },
-                addBodyInput(index, name) {
-                    let hasEmpty = this.form.bodyInputs.find(p => !p.name && !p.value)
-                    if (!hasEmpty) {
-                        this.form.bodyInputs.push({
-                            name: '',
-                            value: '',
-                        })
-                    }
-                },
-                addHeaderInput(index, name) {
-                    let hasEmpty = this.form.headerInputs.find(p => !p.name && !p.value)
-                    if (!hasEmpty) {
-                        this.form.headerInputs.push({
-                            name: '',
-                            value: '',
-                        })
-                    }
-                },
-                addCookieInput(index, name) {
-                    let hasEmpty = this.form.cookieInputs.find(p => !p.name && !p.value)
-                    if (!hasEmpty) {
-                        this.form.cookieInputs.push({
-                            name: '',
-                            value: '',
-                        })
-                    }
-                }
-            }
-        })
-    </script>
+    <script src="index.js"></script>
 </body>
 
 </html>
